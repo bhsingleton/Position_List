@@ -14,20 +14,21 @@ MObject		PositionList::list;
 MObject		PositionList::name;
 MObject		PositionList::weight;
 MObject		PositionList::absolute;
-MObject		PositionList::position;
-MObject		PositionList::positionX;
-MObject		PositionList::positionY;
-MObject		PositionList::positionZ;
+MObject		PositionList::translate;
+MObject		PositionList::translateX;
+MObject		PositionList::translateY;
+MObject		PositionList::translateZ;
 
-MObject		PositionList::value;
-MObject		PositionList::valueX;
-MObject		PositionList::valueY;
-MObject		PositionList::valueZ;
+MObject		PositionList::output;
+MObject		PositionList::outputX;
+MObject		PositionList::outputY;
+MObject		PositionList::outputZ;
 MObject		PositionList::matrix;
+MObject		PositionList::inverseMatrix;
 
 MTypeId		PositionList::id(0x0013b1c5);
 MString		PositionList::listCategory("List");
-MString		PositionList::positionCategory("Position");
+MString		PositionList::translateCategory("Translate");
 MString		PositionList::outputCategory("Output");
 
 
@@ -83,11 +84,11 @@ Only these values should be used when performing computations!
 		unsigned int listCount = listHandle.elementCount();
 		std::vector<PositionListItem> items = std::vector<PositionListItem>(listCount);
 		
-		MDataHandle elementHandle, nameHandle, weightHandle, absoluteHandle, positionHandle, positionXHandle, positionYHandle, positionZHandle;
+		MDataHandle elementHandle, nameHandle, weightHandle, absoluteHandle, translateHandle, translateXHandle, translateYHandle, translateZHandle;
 		MString name;
 		float weight;
 		bool absolute;
-		double positionX, positionY, positionZ;
+		double translateX, translateY, translateZ;
 		
 		for (unsigned int i = 0; i < listCount; i++)
 		{
@@ -105,23 +106,23 @@ Only these values should be used when performing computations!
 			nameHandle = elementHandle.child(PositionList::name);
 			weightHandle = elementHandle.child(PositionList::weight);
 			absoluteHandle = elementHandle.child(PositionList::absolute);
-			positionHandle = elementHandle.child(PositionList::position);
-			positionXHandle = positionHandle.child(PositionList::positionX);
-			positionYHandle = positionHandle.child(PositionList::positionY);
-			positionZHandle = positionHandle.child(PositionList::positionZ);
+			translateHandle = elementHandle.child(PositionList::translate);
+			translateXHandle = translateHandle.child(PositionList::translateX);
+			translateYHandle = translateHandle.child(PositionList::translateY);
+			translateZHandle = translateHandle.child(PositionList::translateZ);
 			
 			// Get values from handles
 			//
 			name = nameHandle.asString();
 			weight = weightHandle.asFloat();
 			absolute = absoluteHandle.asBool();
-			positionX = positionXHandle.asDistance().asCentimeters();
-			positionY = positionYHandle.asDistance().asCentimeters();
-			positionZ = positionZHandle.asDistance().asCentimeters();
+			translateX = translateXHandle.asDistance().asCentimeters();
+			translateY = translateYHandle.asDistance().asCentimeters();
+			translateZ = translateZHandle.asDistance().asCentimeters();
 			
 			// Assign value to arrays
 			//
-			items[i] = PositionListItem{ name, weight, absolute, MVector(positionX, positionY, positionZ) };
+			items[i] = PositionListItem{ name, weight, absolute, MVector(translateX, translateY, translateZ) };
 			
 		}
 		
@@ -136,36 +137,42 @@ Only these values should be used when performing computations!
 
 		// Calculate weighted average
 		//
-		MVector position = PositionList::average(items);
-		MMatrix matrix = PositionList::createPositionMatrix(position);
+		MVector translation = PositionList::average(items);
+		MMatrix matrix = PositionList::createTranslationMatrix(translation);
 		
 		// Get output data handles
 		//
-		MDataHandle valueXHandle = data.outputValue(PositionList::valueX, &status);
+		MDataHandle outputXHandle = data.outputValue(PositionList::outputX, &status);
 		CHECK_MSTATUS_AND_RETURN_IT(status);
 
-		MDataHandle valueYHandle = data.outputValue(PositionList::valueY, &status);
+		MDataHandle outputYHandle = data.outputValue(PositionList::outputY, &status);
 		CHECK_MSTATUS_AND_RETURN_IT(status);
 
-		MDataHandle valueZHandle = data.outputValue(PositionList::valueZ, &status);
+		MDataHandle outputZHandle = data.outputValue(PositionList::outputZ, &status);
 		CHECK_MSTATUS_AND_RETURN_IT(status);
 
 		MDataHandle matrixHandle = data.outputValue(PositionList::matrix, &status);
 		CHECK_MSTATUS_AND_RETURN_IT(status);
 
+		MDataHandle inverseMatrixHandle = data.outputValue(PositionList::inverseMatrix, &status);
+		CHECK_MSTATUS_AND_RETURN_IT(status);
+
 		// Update output data handles
 		//
-		valueXHandle.setMDistance(MDistance(position.x, MDistance::kCentimeters));
-		valueXHandle.setClean();
+		outputXHandle.setMDistance(MDistance(translation.x, MDistance::kCentimeters));
+		outputXHandle.setClean();
 		
-		valueYHandle.setMDistance(MDistance(position.y, MDistance::kCentimeters));
-		valueYHandle.setClean();
+		outputYHandle.setMDistance(MDistance(translation.y, MDistance::kCentimeters));
+		outputYHandle.setClean();
 		
-		valueZHandle.setMDistance(MDistance(position.z, MDistance::kCentimeters));
-		valueZHandle.setClean();
+		outputZHandle.setMDistance(MDistance(translation.z, MDistance::kCentimeters));
+		outputZHandle.setClean();
 
 		matrixHandle.setMMatrix(matrix);
 		matrixHandle.setClean();
+
+		inverseMatrixHandle.setMMatrix(matrix.inverse());
+		inverseMatrixHandle.setClean();
 
 		// Mark plug as clean
 		//
@@ -232,13 +239,13 @@ Returns the weighted average of the supplied position items.
 		if (item.absolute)
 		{
 
-			average = lerp(average, item.position, item.weight);
+			average = lerp(average, item.translate, item.weight);
 
 		}
 		else
 		{
 
-			average += (item.position * item.weight);
+			average += (item.translate * item.weight);
 
 		}
 		
@@ -293,7 +300,7 @@ Normalizes the passed weights so that the total sum equals 1.0.
 };
 
 
-MMatrix PositionList::createPositionMatrix(const double x, const double y, const double z)
+MMatrix PositionList::createTranslationMatrix(const double x, const double y, const double z)
 /**
 Returns a position matrix from the supplied XYZ values.
 
@@ -316,7 +323,7 @@ Returns a position matrix from the supplied XYZ values.
 };
 
 
-MMatrix PositionList::createPositionMatrix(const MVector& position)
+MMatrix PositionList::createTranslationMatrix(const MVector& position)
 /**
 Returns a position matrix from the supplied vector.
 
@@ -325,7 +332,7 @@ Returns a position matrix from the supplied vector.
 */
 {
 
-	return PositionList::createPositionMatrix(position.x, position.y, position.z);
+	return PositionList::createTranslationMatrix(position.x, position.y, position.z);
 
 };
 
@@ -397,36 +404,36 @@ Use this function to define any static attributes.
 
 	CHECK_MSTATUS(fnNumericAttr.addToCategory(PositionList::listCategory));
 
-	// ".positionX" attribute
+	// ".translateX" attribute
 	//
-	PositionList::positionX = fnUnitAttr.create("positionX", "px", MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::translateX = fnUnitAttr.create("translateX", "tx", MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 	
-	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::positionCategory));
+	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::translateCategory));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::listCategory));
 
-	// ".positionY" attribute
+	// ".translateY" attribute
 	//
-	PositionList::positionY = fnUnitAttr.create("positionY", "py",  MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::translateY = fnUnitAttr.create("translateY", "ty",  MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 	
-	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::positionCategory));
+	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::translateCategory));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::listCategory));
 
-	// ".positionZ" attribute
+	// ".translateZ" attribute
 	//
-	PositionList::positionZ = fnUnitAttr.create("positionZ", "pz",  MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::translateZ = fnUnitAttr.create("translateZ", "tz",  MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 	
-	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::positionCategory));
+	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::translateCategory));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::listCategory));
 
-	// ".position" attribute
+	// ".translate" attribute
 	//
-	PositionList::position = fnNumericAttr.create("position", "p", PositionList::positionX, PositionList::positionY, PositionList::positionZ, &status);
+	PositionList::translate = fnNumericAttr.create("translate", "t", PositionList::translateX, PositionList::translateY, PositionList::translateZ, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 
-	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::positionCategory));
+	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::translateCategory));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::listCategory));
 
 	// ".list" attribute
@@ -437,41 +444,41 @@ Use this function to define any static attributes.
 	CHECK_MSTATUS(fnCompoundAttr.addChild(PositionList::name));
 	CHECK_MSTATUS(fnCompoundAttr.addChild(PositionList::weight));
 	CHECK_MSTATUS(fnCompoundAttr.addChild(PositionList::absolute));
-	CHECK_MSTATUS(fnCompoundAttr.addChild(PositionList::position));
+	CHECK_MSTATUS(fnCompoundAttr.addChild(PositionList::translate));
 	CHECK_MSTATUS(fnCompoundAttr.setArray(true));
 	CHECK_MSTATUS(fnCompoundAttr.addToCategory(PositionList::listCategory));
 
 	// Output attributes:
-	// ".valueX" attribute
+	// ".outputX" attribute
 	//
-	PositionList::valueX = fnUnitAttr.create("valueX", "vx", MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::outputX = fnUnitAttr.create("outputX", "ox", MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 
 	CHECK_MSTATUS(fnUnitAttr.setWritable(false));
 	CHECK_MSTATUS(fnUnitAttr.setStorable(false));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::outputCategory));
 
-	// ".valueY" attribute
+	// ".outputY" attribute
 	//
-	PositionList::valueY = fnUnitAttr.create("valueY", "vy", MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::outputY = fnUnitAttr.create("outputY", "oy", MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 
 	CHECK_MSTATUS(fnUnitAttr.setWritable(false));
 	CHECK_MSTATUS(fnUnitAttr.setStorable(false));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::outputCategory));
 
-	// ".valueZ" attribute
+	// ".outputZ" attribute
 	//
-	PositionList::valueZ = fnUnitAttr.create("valueZ", "vz", MFnUnitAttribute::kDistance, 0.0, &status);
+	PositionList::outputZ = fnUnitAttr.create("outputZ", "oz", MFnUnitAttribute::kDistance, 0.0, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 
 	CHECK_MSTATUS(fnUnitAttr.setWritable(false));
 	CHECK_MSTATUS(fnUnitAttr.setStorable(false));
 	CHECK_MSTATUS(fnUnitAttr.addToCategory(PositionList::outputCategory));
 
-	// ".value" attribute
+	// ".output" attribute
 	//
-	PositionList::value = fnNumericAttr.create("value", "v", PositionList::valueX, PositionList::valueY, PositionList::valueZ, &status);
+	PositionList::output = fnNumericAttr.create("output", "o", PositionList::outputX, PositionList::outputY, PositionList::outputZ, &status);
 	CHECK_MSTATUS_AND_RETURN_IT(status);
 
 	CHECK_MSTATUS(fnNumericAttr.setWritable(false));
@@ -487,48 +494,60 @@ Use this function to define any static attributes.
 	CHECK_MSTATUS(fnMatrixAttr.setStorable(false));
 	CHECK_MSTATUS(fnMatrixAttr.addToCategory(PositionList::outputCategory));
 
+	// ".inverseMatrix" attribute
+	//
+	PositionList::inverseMatrix = fnMatrixAttr.create("inverseMatrix", "im", MFnMatrixAttribute::kDouble, &status);
+	CHECK_MSTATUS_AND_RETURN_IT(status);
+
+	CHECK_MSTATUS(fnMatrixAttr.setWritable(false));
+	CHECK_MSTATUS(fnMatrixAttr.setStorable(false));
+	CHECK_MSTATUS(fnMatrixAttr.addToCategory(PositionList::outputCategory));
+
 	// Add attributes to node
 	//
 	CHECK_MSTATUS(PositionList::addAttribute(PositionList::active));
 	CHECK_MSTATUS(PositionList::addAttribute(PositionList::normalizeWeights));
 	CHECK_MSTATUS(PositionList::addAttribute(PositionList::list));
 
-	CHECK_MSTATUS(PositionList::addAttribute(PositionList::value));
+	CHECK_MSTATUS(PositionList::addAttribute(PositionList::output));
 	CHECK_MSTATUS(PositionList::addAttribute(PositionList::matrix));
+	CHECK_MSTATUS(PositionList::addAttribute(PositionList::inverseMatrix));
 
 	// Define attribute relationships
 	//
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionX, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionY, PositionList::valueX));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionZ, PositionList::valueX));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::outputX));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::outputX));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::outputX));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::outputX));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateX, PositionList::outputX));
 
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionX, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionY, PositionList::valueY));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionZ, PositionList::valueY));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::outputY));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::outputY));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::outputY));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::outputY));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateY, PositionList::outputY));
 
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionX, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionY, PositionList::valueZ));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionZ, PositionList::valueZ));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::outputZ));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::outputZ));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::outputZ));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::outputZ));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateZ, PositionList::outputZ));
 
 	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::matrix));
 	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::matrix));
 	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::matrix));
 	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::matrix));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionX, PositionList::matrix));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionY, PositionList::matrix));
-	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::positionZ, PositionList::matrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateX, PositionList::matrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateY, PositionList::matrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateZ, PositionList::matrix));
+
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::active, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::normalizeWeights, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::weight, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::absolute, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateX, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateY, PositionList::inverseMatrix));
+	CHECK_MSTATUS(PositionList::attributeAffects(PositionList::translateZ, PositionList::inverseMatrix));
 
 	return status;
 

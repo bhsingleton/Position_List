@@ -41,7 +41,7 @@ struct PositionListItem
 	MString	name = "";
 	float weight = 1.0;
 	bool absolute = false;
-	MVector position = MVector::zero;
+	MVector translate = MVector::zero;
 
 };
 
@@ -61,8 +61,8 @@ public:
 	static	MVector		average(const std::vector<PositionListItem>& items);
 	static	void		normalize(std::vector<PositionListItem>& items);
 
-	static	MMatrix		createPositionMatrix(const double x, const double y, const double z);
-	static	MMatrix		createPositionMatrix(const MVector& position);
+	static	MMatrix		createTranslationMatrix(const double x, const double y, const double z);
+	static	MMatrix		createTranslationMatrix(const MVector& position);
 	
 public:
 
@@ -72,20 +72,21 @@ public:
 	static	MObject		name;
 	static	MObject		weight;
 	static	MObject		absolute;
-	static	MObject		positionX;
-	static	MObject		positionY;
-	static	MObject		positionZ;
-	static	MObject		position;
+	static	MObject		translate;
+	static	MObject		translateX;
+	static	MObject		translateY;
+	static	MObject		translateZ;
 	
-	static	MObject		value;
-	static	MObject		valueX;
-	static	MObject		valueY;
-	static	MObject		valueZ;
+	static	MObject		output;
+	static	MObject		outputX;
+	static	MObject		outputY;
+	static	MObject		outputZ;
 	static	MObject		matrix;
-	
+	static	MObject		inverseMatrix;
+
 	static	MTypeId		id;
 	static	MString		listCategory;
-	static	MString		positionCategory;
+	static	MString		translateCategory;
 	static	MString		outputCategory;
 
 };
